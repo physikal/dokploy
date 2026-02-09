@@ -17,9 +17,11 @@ import {
 import { db } from "@/server/db";
 import {
 	apiCreateDestination,
+	apiCreateGoogleDriveDestination,
 	apiFindOneDestination,
 	apiRemoveDestination,
 	apiUpdateDestination,
+	apiUpdateGoogleDriveDestination,
 	destinations,
 } from "@/server/db/schema";
 
@@ -36,6 +38,33 @@ export const destinationRouter = createTRPCRouter({
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message: "Error creating the destination",
+					cause: error,
+				});
+			}
+		}),
+	createGoogleDrive: adminProcedure
+		.input(apiCreateGoogleDriveDestination)
+		.mutation(async ({ input, ctx }) => {
+			try {
+				return await createDestintation(
+					{
+						name: input.name,
+						destinationType: "google-drive",
+						serviceAccountJSON: input.serviceAccountJSON,
+						googleDriveFolderId: input.googleDriveFolderId || "",
+						accessKey: "",
+						secretAccessKey: "",
+						bucket: "",
+						region: "",
+						endpoint: "",
+						provider: "",
+					},
+					ctx.session.activeOrganizationId,
+				);
+			} catch (error) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Error creating Google Drive destination",
 					cause: error,
 				});
 			}
@@ -83,6 +112,54 @@ export const destinationRouter = createTRPCRouter({
 						error instanceof Error
 							? error?.message
 							: "Error connecting to bucket",
+					cause: error,
+				});
+			}
+		}),
+	testGoogleDriveConnection: adminProcedure
+		.input(apiCreateGoogleDriveDestination)
+		.mutation(async ({ input }) => {
+			try {
+				const saBase64 = Buffer.from(input.serviceAccountJSON).toString(
+					"base64",
+				);
+				const saFilePath = "/tmp/dokploy-gdrive-test-sa.json";
+				const setupCmd = `echo "${saBase64}" | base64 -d > "${saFilePath}"`;
+				const cleanupCmd = `rm -f "${saFilePath}"`;
+
+				const rcloneFlags = [
+					`--drive-service-account-file="${saFilePath}"`,
+					"--retries 1",
+					"--low-level-retries 1",
+					"--timeout 10s",
+					"--contimeout 5s",
+				];
+				if (input.googleDriveFolderId) {
+					rcloneFlags.push(
+						`--drive-root-folder-id="${input.googleDriveFolderId}"`,
+					);
+				}
+				const rcloneCommand = `${setupCmd} && rclone lsd ${rcloneFlags.join(" ")} ":drive:" && ${cleanupCmd}`;
+
+				if (IS_CLOUD && !input.serverId) {
+					throw new TRPCError({
+						code: "NOT_FOUND",
+						message: "Server not found",
+					});
+				}
+
+				if (IS_CLOUD) {
+					await execAsyncRemote(input.serverId || "", rcloneCommand);
+				} else {
+					await execAsync(rcloneCommand);
+				}
+			} catch (error) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message:
+						error instanceof Error
+							? error?.message
+							: "Error connecting to Google Drive",
 					cause: error,
 				});
 			}
@@ -138,6 +215,27 @@ export const destinationRouter = createTRPCRouter({
 				}
 				return await updateDestinationById(input.destinationId, {
 					...input,
+					organizationId: ctx.session.activeOrganizationId,
+				});
+			} catch (error) {
+				throw error;
+			}
+		}),
+	updateGoogleDrive: adminProcedure
+		.input(apiUpdateGoogleDriveDestination)
+		.mutation(async ({ input, ctx }) => {
+			try {
+				const destination = await findDestinationById(input.destinationId);
+				if (destination.organizationId !== ctx.session.activeOrganizationId) {
+					throw new TRPCError({
+						code: "UNAUTHORIZED",
+						message: "You are not allowed to update this destination",
+					});
+				}
+				return await updateDestinationById(input.destinationId, {
+					name: input.name,
+					serviceAccountJSON: input.serviceAccountJSON,
+					googleDriveFolderId: input.googleDriveFolderId || "",
 					organizationId: ctx.session.activeOrganizationId,
 				});
 			} catch (error) {

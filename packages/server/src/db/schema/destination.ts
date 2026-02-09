@@ -12,12 +12,16 @@ export const destinations = pgTable("destination", {
 		.primaryKey()
 		.$defaultFn(() => nanoid()),
 	name: text("name").notNull(),
+	destinationType: text("destinationType").notNull().default("s3"),
 	provider: text("provider"),
-	accessKey: text("accessKey").notNull(),
-	secretAccessKey: text("secretAccessKey").notNull(),
-	bucket: text("bucket").notNull(),
-	region: text("region").notNull(),
-	endpoint: text("endpoint").notNull(),
+	accessKey: text("accessKey").notNull().default(""),
+	secretAccessKey: text("secretAccessKey").notNull().default(""),
+	bucket: text("bucket").notNull().default(""),
+	region: text("region").notNull().default(""),
+	endpoint: text("endpoint").notNull().default(""),
+	// Google Drive fields
+	serviceAccountJSON: text("serviceAccountJSON"),
+	googleDriveFolderId: text("googleDriveFolderId"),
 	organizationId: text("organizationId")
 		.notNull()
 		.references(() => organization.id, { onDelete: "cascade" }),
@@ -38,14 +42,18 @@ export const destinationsRelations = relations(
 const createSchema = createInsertSchema(destinations, {
 	destinationId: z.string(),
 	name: z.string().min(1),
+	destinationType: z.string(),
 	provider: z.string(),
 	accessKey: z.string(),
 	bucket: z.string(),
 	endpoint: z.string(),
 	secretAccessKey: z.string(),
 	region: z.string(),
+	serviceAccountJSON: z.string().optional(),
+	googleDriveFolderId: z.string().optional(),
 });
 
+// S3 destination schemas (existing behavior)
 export const apiCreateDestination = createSchema
 	.pick({
 		name: true,
@@ -60,6 +68,22 @@ export const apiCreateDestination = createSchema
 	.extend({
 		serverId: z.string().optional(),
 	});
+
+// Google Drive destination schemas
+export const apiCreateGoogleDriveDestination = z.object({
+	name: z.string().min(1, "Name is required"),
+	serviceAccountJSON: z.string().min(1, "Service Account JSON is required"),
+	googleDriveFolderId: z.string().optional(),
+	serverId: z.string().optional(),
+});
+
+export const apiUpdateGoogleDriveDestination = z.object({
+	destinationId: z.string().min(1),
+	name: z.string().min(1, "Name is required"),
+	serviceAccountJSON: z.string().min(1, "Service Account JSON is required"),
+	googleDriveFolderId: z.string().optional(),
+	serverId: z.string().optional(),
+});
 
 export const apiFindOneDestination = createSchema
 	.pick({

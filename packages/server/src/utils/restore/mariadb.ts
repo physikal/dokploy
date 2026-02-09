@@ -2,7 +2,11 @@ import type { apiRestoreBackup } from "@dokploy/server/db/schema";
 import type { Destination } from "@dokploy/server/services/destination";
 import type { Mariadb } from "@dokploy/server/services/mariadb";
 import type { z } from "zod";
-import { getS3Credentials } from "../backups/utils";
+import {
+	getDestinationCredentials,
+	getDestinationRemotePath,
+	wrapWithDestinationSetup,
+} from "../backups/utils";
 import { execAsync, execAsyncRemote } from "../process/execAsync";
 import { getRestoreCommand } from "./utils";
 
@@ -15,9 +19,8 @@ export const restoreMariadbBackup = async (
 	try {
 		const { appName, serverId, databaseUser, databasePassword } = mariadb;
 
-		const rcloneFlags = getS3Credentials(destination);
-		const bucketPath = `:s3:${destination.bucket}`;
-		const backupPath = `${bucketPath}/${backupInput.backupFile}`;
+		const rcloneFlags = getDestinationCredentials(destination);
+		const backupPath = getDestinationRemotePath(destination, backupInput.backupFile);
 
 		const rcloneCommand = `rclone cat ${rcloneFlags.join(" ")} "${backupPath}" | gunzip`;
 
@@ -37,10 +40,11 @@ export const restoreMariadbBackup = async (
 
 		emit(`Executing command: ${command}`);
 
+		const finalCommand = wrapWithDestinationSetup(destination, command);
 		if (serverId) {
-			await execAsyncRemote(serverId, command);
+			await execAsyncRemote(serverId, finalCommand);
 		} else {
-			await execAsync(command);
+			await execAsync(finalCommand);
 		}
 
 		emit("Restore completed successfully!");

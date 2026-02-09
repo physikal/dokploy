@@ -8,7 +8,13 @@ import type { MySql } from "@dokploy/server/services/mysql";
 import { findProjectById } from "@dokploy/server/services/project";
 import { sendDatabaseBackupNotifications } from "../notifications/database-backup";
 import { execAsync, execAsyncRemote } from "../process/execAsync";
-import { getBackupCommand, getS3Credentials, normalizeS3Path } from "./utils";
+import {
+	getBackupCommand,
+	getDestinationCredentials,
+	getDestinationRemotePath,
+	normalizeS3Path,
+	wrapWithDestinationSetup,
+} from "./utils";
 
 export const runMySqlBackup = async (mysql: MySql, backup: BackupSchedule) => {
 	const { environmentId, name } = mysql;
@@ -25,16 +31,17 @@ export const runMySqlBackup = async (mysql: MySql, backup: BackupSchedule) => {
 	});
 
 	try {
-		const rcloneFlags = getS3Credentials(destination);
-		const rcloneDestination = `:s3:${destination.bucket}/${bucketDestination}`;
+		const rcloneFlags = getDestinationCredentials(destination);
+		const rcloneDestination = getDestinationRemotePath(destination, bucketDestination);
 
 		const rcloneCommand = `rclone rcat ${rcloneFlags.join(" ")} "${rcloneDestination}"`;
 
-		const backupCommand = getBackupCommand(
+		let backupCommand = getBackupCommand(
 			backup,
 			rcloneCommand,
 			deployment.logPath,
 		);
+		backupCommand = wrapWithDestinationSetup(destination, backupCommand);
 
 		if (mysql.serverId) {
 			await execAsyncRemote(mysql.serverId, backupCommand);

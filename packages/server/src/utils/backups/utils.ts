@@ -77,6 +77,73 @@ export const getS3Credentials = (destination: Destination) => {
 	return rcloneFlags;
 };
 
+export const getGoogleDriveCredentials = (destination: Destination) => {
+	const saFilePath = `/tmp/dokploy-gdrive-sa-${destination.destinationId}.json`;
+	const flags: string[] = [`--drive-service-account-file="${saFilePath}"`];
+	if (destination.googleDriveFolderId) {
+		flags.push(
+			`--drive-root-folder-id="${destination.googleDriveFolderId}"`,
+		);
+	}
+	return flags;
+};
+
+export const getDestinationCredentials = (destination: Destination) => {
+	if (destination.destinationType === "google-drive") {
+		return getGoogleDriveCredentials(destination);
+	}
+	return getS3Credentials(destination);
+};
+
+export const getDestinationRemotePath = (
+	destination: Destination,
+	subPath: string,
+) => {
+	if (destination.destinationType === "google-drive") {
+		return `:drive:${subPath}`;
+	}
+	return `:s3:${destination.bucket}/${subPath}`;
+};
+
+export const getDestinationRemoteBase = (destination: Destination) => {
+	if (destination.destinationType === "google-drive") {
+		return `:drive:`;
+	}
+	return `:s3:${destination.bucket}`;
+};
+
+export const getDestinationSetupCommand = (destination: Destination) => {
+	if (
+		destination.destinationType === "google-drive" &&
+		destination.serviceAccountJSON
+	) {
+		const saFilePath = `/tmp/dokploy-gdrive-sa-${destination.destinationId}.json`;
+		const saBase64 = Buffer.from(destination.serviceAccountJSON).toString(
+			"base64",
+		);
+		return `echo "${saBase64}" | base64 -d > "${saFilePath}"`;
+	}
+	return "";
+};
+
+export const getDestinationCleanupCommand = (destination: Destination) => {
+	if (destination.destinationType === "google-drive") {
+		const saFilePath = `/tmp/dokploy-gdrive-sa-${destination.destinationId}.json`;
+		return `rm -f "${saFilePath}"`;
+	}
+	return "";
+};
+
+export const wrapWithDestinationSetup = (
+	destination: Destination,
+	command: string,
+) => {
+	const setup = getDestinationSetupCommand(destination);
+	const cleanup = getDestinationCleanupCommand(destination);
+	if (!setup) return command;
+	return `${setup}\n${command}\n${cleanup}`;
+};
+
 export const getPostgresBackupCommand = (
 	database: string,
 	databaseUser: string,
@@ -255,16 +322,16 @@ export const getBackupCommand = (
 	}
 
 	echo "[$(date)] ✅ backup completed successfully" >> ${logPath};
-	echo "[$(date)] Starting upload to S3..." >> ${logPath};
+	echo "[$(date)] Starting upload to destination..." >> ${logPath};
 
 	# Run the upload command and capture the exit status
 	UPLOAD_OUTPUT=$(${backupCommand} | ${rcloneCommand} 2>&1 >/dev/null) || {
-		echo "[$(date)] ❌ Error: Upload to S3 failed" >> ${logPath};
+		echo "[$(date)] ❌ Error: Upload to destination failed" >> ${logPath};
 		echo "Error: $UPLOAD_OUTPUT" >> ${logPath};
 		exit 1;
 	}
 
-	echo "[$(date)] ✅ Upload to S3 completed successfully" >> ${logPath};
+	echo "[$(date)] ✅ Upload to destination completed successfully" >> ${logPath};
 	echo "Backup done ✅" >> ${logPath};
 	`;
 };

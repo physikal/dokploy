@@ -10,7 +10,12 @@ import {
 } from "@dokploy/server/services/deployment";
 import { findDestinationById } from "@dokploy/server/services/destination";
 import { execAsync } from "../process/execAsync";
-import { getS3Credentials, normalizeS3Path } from "./utils";
+import {
+	getDestinationCredentials,
+	getDestinationRemotePath,
+	normalizeS3Path,
+	wrapWithDestinationSetup,
+} from "./utils";
 
 export const runWebServerBackup = async (backup: BackupSchedule) => {
 	if (IS_CLOUD) {
@@ -26,12 +31,12 @@ export const runWebServerBackup = async (backup: BackupSchedule) => {
 
 	try {
 		const destination = await findDestinationById(backup.destinationId);
-		const rcloneFlags = getS3Credentials(destination);
+		const rcloneFlags = getDestinationCredentials(destination);
 		const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 		const { BASE_PATH } = paths();
 		const tempDir = await mkdtemp(join(tmpdir(), "dokploy-backup-"));
 		const backupFileName = `webserver-backup-${timestamp}.zip`;
-		const s3Path = `:s3:${destination.bucket}/${normalizeS3Path(backup.prefix)}${backupFileName}`;
+		const remotePath = getDestinationRemotePath(destination, `${normalizeS3Path(backup.prefix)}${backupFileName}`);
 
 		try {
 			await execAsync(`mkdir -p ${tempDir}/filesystem`);
@@ -79,10 +84,11 @@ export const runWebServerBackup = async (backup: BackupSchedule) => {
 
 			writeStream.write("Zipped database and filesystem\n");
 
-			const uploadCommand = `rclone copyto ${rcloneFlags.join(" ")} "${tempDir}/${backupFileName}" "${s3Path}"`;
-			writeStream.write("Running command to upload backup to S3\n");
+			let uploadCommand = `rclone copyto ${rcloneFlags.join(" ")} "${tempDir}/${backupFileName}" "${remotePath}"`;
+			uploadCommand = wrapWithDestinationSetup(destination, uploadCommand);
+			writeStream.write("Running command to upload backup...\n");
 			await execAsync(uploadCommand);
-			writeStream.write("Uploaded backup to S3 ✅\n");
+			writeStream.write("Uploaded backup ✅\n");
 			writeStream.end();
 			await updateDeploymentStatus(deployment.deploymentId, "done");
 			return true;

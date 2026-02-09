@@ -3,9 +3,14 @@ import {
 	findApplicationById,
 	findComposeById,
 	findDestinationById,
-	getS3Credentials,
 	paths,
 } from "../..";
+import {
+	getDestinationCredentials,
+	getDestinationRemotePath,
+	getDestinationSetupCommand,
+	getDestinationCleanupCommand,
+} from "../backups/utils";
 
 export const restoreVolume = async (
 	id: string,
@@ -18,20 +23,22 @@ export const restoreVolume = async (
 	const destination = await findDestinationById(destinationId);
 	const { VOLUME_BACKUPS_PATH } = paths(!!serverId);
 	const volumeBackupPath = path.join(VOLUME_BACKUPS_PATH, volumeName);
-	const rcloneFlags = getS3Credentials(destination);
-	const bucketPath = `:s3:${destination.bucket}`;
-	const backupPath = `${bucketPath}/${backupFileName}`;
+	const rcloneFlags = getDestinationCredentials(destination);
+	const backupPath = getDestinationRemotePath(destination, backupFileName);
+	const setupCmd = getDestinationSetupCommand(destination);
+	const cleanupCmd = getDestinationCleanupCommand(destination);
 
-	// Command to download backup file from S3
+	// Command to download backup file from destination
 	const downloadCommand = `rclone copyto ${rcloneFlags.join(" ")} "${backupPath}" "${volumeBackupPath}/${backupFileName}"`;
 
 	// Base restore command that creates the volume and restores data
 	const baseRestoreCommand = `
 	set -e
+	${setupCmd}
 	echo "Volume name: ${volumeName}"
 	echo "Backup file name: ${backupFileName}"
 	echo "Volume backup path: ${volumeBackupPath}"
-	echo "Downloading backup from S3..."
+	echo "Downloading backup from destination..."
 	mkdir -p ${volumeBackupPath}
 	${downloadCommand}
 	echo "Download completed ✅"
@@ -42,6 +49,7 @@ export const restoreVolume = async (
 		ubuntu \
 		bash -c "cd /volume_data && tar xvf /backup/${backupFileName} ."
 	echo "Volume restore completed ✅"
+	${cleanupCmd}
 	`;
 
 	// Function to check if volume exists and get containers using it

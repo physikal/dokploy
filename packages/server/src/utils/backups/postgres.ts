@@ -8,7 +8,13 @@ import type { Postgres } from "@dokploy/server/services/postgres";
 import { findProjectById } from "@dokploy/server/services/project";
 import { sendDatabaseBackupNotifications } from "../notifications/database-backup";
 import { execAsync, execAsyncRemote } from "../process/execAsync";
-import { getBackupCommand, getS3Credentials, normalizeS3Path } from "./utils";
+import {
+	getBackupCommand,
+	getDestinationCredentials,
+	getDestinationRemotePath,
+	normalizeS3Path,
+	wrapWithDestinationSetup,
+} from "./utils";
 
 export const runPostgresBackup = async (
 	postgres: Postgres,
@@ -28,16 +34,17 @@ export const runPostgresBackup = async (
 	const backupFileName = `${new Date().toISOString()}.sql.gz`;
 	const bucketDestination = `${normalizeS3Path(prefix)}${backupFileName}`;
 	try {
-		const rcloneFlags = getS3Credentials(destination);
-		const rcloneDestination = `:s3:${destination.bucket}/${bucketDestination}`;
+		const rcloneFlags = getDestinationCredentials(destination);
+		const rcloneDestination = getDestinationRemotePath(destination, bucketDestination);
 
 		const rcloneCommand = `rclone rcat ${rcloneFlags.join(" ")} "${rcloneDestination}"`;
 
-		const backupCommand = getBackupCommand(
+		let backupCommand = getBackupCommand(
 			backup,
 			rcloneCommand,
 			deployment.logPath,
 		);
+		backupCommand = wrapWithDestinationSetup(destination, backupCommand);
 		if (postgres.serverId) {
 			await execAsyncRemote(postgres.serverId, backupCommand);
 		} else {

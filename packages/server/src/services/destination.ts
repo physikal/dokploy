@@ -7,9 +7,10 @@ import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 
 export type Destination = typeof destinations.$inferSelect;
+type DestinationInsert = typeof destinations.$inferInsert;
 
 export const createDestintation = async (
-	input: typeof apiCreateDestination._type,
+	input: Omit<DestinationInsert, "organizationId" | "destinationId" | "createdAt">,
 	organizationId: string,
 ) => {
 	const newDestination = await db

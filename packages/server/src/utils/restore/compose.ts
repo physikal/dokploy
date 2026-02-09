@@ -2,7 +2,11 @@ import type { apiRestoreBackup } from "@dokploy/server/db/schema";
 import type { Compose } from "@dokploy/server/services/compose";
 import type { Destination } from "@dokploy/server/services/destination";
 import type { z } from "zod";
-import { getS3Credentials } from "../backups/utils";
+import {
+	getDestinationCredentials,
+	getDestinationRemotePath,
+	wrapWithDestinationSetup,
+} from "../backups/utils";
 import { execAsync, execAsyncRemote } from "../process/execAsync";
 import { getRestoreCommand } from "./utils";
 
@@ -23,9 +27,8 @@ export const restoreComposeBackup = async (
 		}
 		const { serverId, appName, composeType } = compose;
 
-		const rcloneFlags = getS3Credentials(destination);
-		const bucketPath = `:s3:${destination.bucket}`;
-		const backupPath = `${bucketPath}/${backupInput.backupFile}`;
+		const rcloneFlags = getDestinationCredentials(destination);
+		const backupPath = getDestinationRemotePath(destination, backupInput.backupFile);
 		let rcloneCommand = `rclone cat ${rcloneFlags.join(" ")} "${backupPath}" | gunzip`;
 
 		if (backupInput.metadata?.mongo) {
@@ -76,10 +79,11 @@ export const restoreComposeBackup = async (
 
 		emit(`Executing command: ${restoreCommand}`);
 
+		const finalCommand = wrapWithDestinationSetup(destination, restoreCommand);
 		if (serverId) {
-			await execAsyncRemote(serverId, restoreCommand);
+			await execAsyncRemote(serverId, finalCommand);
 		} else {
-			await execAsync(restoreCommand);
+			await execAsync(finalCommand);
 		}
 
 		emit("Restore completed successfully!");

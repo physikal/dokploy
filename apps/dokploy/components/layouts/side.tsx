@@ -355,7 +355,7 @@ const MENU: Menu = {
 		},
 		{
 			isSingle: true,
-			title: "S3 Destinations",
+			title: "Remote Storage",
 			url: "/dashboard/settings/destinations",
 			icon: Database,
 			// Only enabled for admins
