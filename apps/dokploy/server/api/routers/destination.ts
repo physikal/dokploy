@@ -120,6 +120,22 @@ export const destinationRouter = createTRPCRouter({
 		.input(apiCreateGoogleDriveDestination)
 		.mutation(async ({ input }) => {
 			try {
+				// Check if rclone is installed first
+				try {
+					if (IS_CLOUD) {
+						await execAsyncRemote(
+							input.serverId || "",
+							"which rclone",
+						);
+					} else {
+						await execAsync("which rclone");
+					}
+				} catch {
+					throw new Error(
+						"rclone is not installed. Please install rclone to use Google Drive destinations.",
+					);
+				}
+
 				const saBase64 = Buffer.from(input.serviceAccountJSON).toString(
 					"base64",
 				);
@@ -154,13 +170,33 @@ export const destinationRouter = createTRPCRouter({
 					await execAsync(rcloneCommand);
 				}
 			} catch (error) {
+				// Sanitize error message to never expose credentials/base64 data
+				let message = "Error connecting to Google Drive";
+				if (error instanceof Error) {
+					if (error.message.includes("rclone is not installed")) {
+						message = error.message;
+					} else if (error.message.includes("rclone: not found")) {
+						message =
+							"rclone is not installed. Please install rclone to use Google Drive destinations.";
+					} else if (
+						error.message.includes("Failed to configure token")
+					) {
+						message =
+							"Invalid service account credentials. Please check your JSON key.";
+					} else if (error.message.includes("couldn't list directory")) {
+						message =
+							"Could not access Google Drive. Check that the Drive API is enabled and the folder is shared with the service account.";
+					} else {
+						// Strip any base64 or long encoded data from the message
+						message = error.message
+							.replace(/echo\s+"[A-Za-z0-9+/=]{20,}"/g, 'echo "***"')
+							.replace(/base64[^"]*"/g, 'base64 ***"')
+							.substring(0, 300);
+					}
+				}
 				throw new TRPCError({
 					code: "BAD_REQUEST",
-					message:
-						error instanceof Error
-							? error?.message
-							: "Error connecting to Google Drive",
-					cause: error,
+					message,
 				});
 			}
 		}),
