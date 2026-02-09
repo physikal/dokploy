@@ -30,7 +30,7 @@ import { api } from "@/utils/api";
 const addGoogleDriveDestination = z.object({
 	name: z.string().min(1, "Name is required"),
 	serviceAccountJSON: z.string().min(1, "Service Account JSON is required"),
-	googleDriveFolderId: z.string().optional(),
+	googleDriveFolderId: z.string().min(1, "Folder ID is required — service accounts cannot store files without a shared folder"),
 });
 
 type AddGoogleDriveDestination = z.infer<typeof addGoogleDriveDestination>;
@@ -117,9 +117,9 @@ export const HandleGoogleDriveDestinations = ({ destinationId }: Props) => {
 	};
 
 	const handleTestConnection = async () => {
-		const result = await form.trigger(["serviceAccountJSON"]);
+		const result = await form.trigger(["serviceAccountJSON", "googleDriveFolderId"]);
 		if (!result) {
-			toast.error("Please provide the Service Account JSON");
+			toast.error("Please provide the Service Account JSON and Folder ID");
 			return;
 		}
 
@@ -237,7 +237,7 @@ export const HandleGoogleDriveDestinations = ({ destinationId }: Props) => {
 							name="googleDriveFolderId"
 							render={({ field }) => (
 								<FormItem>
-									<FormLabel>Folder ID (Optional)</FormLabel>
+									<FormLabel>Folder ID</FormLabel>
 									<FormControl>
 										<Input
 											placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2wtIs"
@@ -245,8 +245,9 @@ export const HandleGoogleDriveDestinations = ({ destinationId }: Props) => {
 										/>
 									</FormControl>
 									<p className="text-xs text-muted-foreground">
-										The ID from the Google Drive folder URL. If empty, backups
-										go to the root of the shared drive.
+										Create a folder in Google Drive, share it with your service
+										account email (Editor access), then copy the ID from the
+										URL: drive.google.com/drive/folders/<b>THIS_PART</b>
 									</p>
 									<FormMessage />
 								</FormItem>

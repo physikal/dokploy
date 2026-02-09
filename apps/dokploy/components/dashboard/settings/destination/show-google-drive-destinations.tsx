@@ -110,14 +110,22 @@ const GoogleDriveSetupGuide = () => (
 				</li>
 				<li>Create a key (JSON type) and download it</li>
 				<li>
-					In Google Drive, share a folder with the service account email
-					(it looks like{" "}
+					In Google Drive, create a folder for backups and share it
+					with the service account email as{" "}
+					<span className="font-medium text-foreground">Editor</span>
+					{" "}(the email looks like{" "}
 					<code className="text-xs bg-muted px-1 py-0.5 rounded">
 						name@project.iam.gserviceaccount.com
 					</code>
-					)
+					). This is required — service accounts have no storage of their own.
 				</li>
-				<li>Paste the JSON key below and enter the folder ID from the URL</li>
+				<li>
+					Copy the folder ID from the URL:{" "}
+					<code className="text-xs bg-muted px-1 py-0.5 rounded">
+						drive.google.com/drive/folders/<b>FOLDER_ID</b>
+					</code>
+				</li>
+				<li>Paste the JSON key and folder ID below</li>
 			</ol>
 		</details>
 		<HandleGoogleDriveDestinations />

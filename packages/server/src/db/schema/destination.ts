@@ -73,7 +73,7 @@ export const apiCreateDestination = createSchema
 export const apiCreateGoogleDriveDestination = z.object({
 	name: z.string().min(1, "Name is required"),
 	serviceAccountJSON: z.string().min(1, "Service Account JSON is required"),
-	googleDriveFolderId: z.string().optional(),
+	googleDriveFolderId: z.string().min(1, "Folder ID is required"),
 	serverId: z.string().optional(),
 });
 
@@ -81,7 +81,7 @@ export const apiUpdateGoogleDriveDestination = z.object({
 	destinationId: z.string().min(1),
 	name: z.string().min(1, "Name is required"),
 	serviceAccountJSON: z.string().min(1, "Service Account JSON is required"),
-	googleDriveFolderId: z.string().optional(),
+	googleDriveFolderId: z.string().min(1, "Folder ID is required"),
 	serverId: z.string().optional(),
 });
 
