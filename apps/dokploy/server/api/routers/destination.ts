@@ -26,6 +26,20 @@ import {
 } from "@/server/db/schema";
 
 export const destinationRouter = createTRPCRouter({
+	checkRcloneInstalled: protectedProcedure.query(async () => {
+		try {
+			const { stdout } = await execAsync("rclone version 2>&1 | head -1");
+			return {
+				installed: true,
+				version: stdout.trim(),
+			};
+		} catch {
+			return {
+				installed: false,
+				version: null,
+			};
+		}
+	}),
 	create: adminProcedure
 		.input(apiCreateDestination)
 		.mutation(async ({ input, ctx }) => {

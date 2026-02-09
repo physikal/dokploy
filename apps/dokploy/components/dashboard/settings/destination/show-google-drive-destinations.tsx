@@ -1,4 +1,11 @@
-import { FolderUp, HardDrive, Loader2, Trash2 } from "lucide-react";
+import {
+	AlertTriangle,
+	ExternalLink,
+	FolderUp,
+	HardDrive,
+	Loader2,
+	Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { DialogAction } from "@/components/shared/dialog-action";
 import { Button } from "@/components/ui/button";
@@ -12,14 +19,123 @@ import {
 import { api } from "@/utils/api";
 import { HandleGoogleDriveDestinations } from "./handle-google-drive-destinations";
 
+const RcloneNotInstalled = () => (
+	<div className="flex flex-col items-center gap-4 min-h-[25vh] justify-center text-center">
+		<AlertTriangle className="size-10 text-yellow-500" />
+		<div className="flex flex-col gap-2 max-w-lg">
+			<h3 className="text-base font-medium">
+				rclone is required
+			</h3>
+			<p className="text-sm text-muted-foreground">
+				Google Drive destinations require{" "}
+				<span className="font-medium text-foreground">rclone</span> to be
+				installed on your server. rclone handles the secure file transfers
+				between your server and Google Drive.
+			</p>
+		</div>
+		<div className="flex flex-col gap-3 items-center mt-2">
+			<code className="bg-muted px-4 py-2 rounded-md text-sm font-mono">
+				curl https://rclone.org/install.sh | sudo bash
+			</code>
+			<div className="flex flex-row gap-3">
+				<a
+					href="https://rclone.org/install/"
+					target="_blank"
+					rel="noopener noreferrer"
+					className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 underline underline-offset-4"
+				>
+					Installation guide
+					<ExternalLink className="size-3" />
+				</a>
+				<a
+					href="https://rclone.org/drive/"
+					target="_blank"
+					rel="noopener noreferrer"
+					className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 underline underline-offset-4"
+				>
+					Google Drive docs
+					<ExternalLink className="size-3" />
+				</a>
+			</div>
+		</div>
+	</div>
+);
+
+const GoogleDriveSetupGuide = () => (
+	<div className="flex flex-col items-center gap-3 min-h-[25vh] justify-center">
+		<FolderUp className="size-8 self-center text-muted-foreground" />
+		<span className="text-base text-muted-foreground text-center max-w-md">
+			Connect a Google Drive service account to use it as a backup
+			destination.
+		</span>
+		<details className="w-full max-w-lg mt-2">
+			<summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground">
+				How to set up a service account
+			</summary>
+			<ol className="text-sm text-muted-foreground mt-3 space-y-2 list-decimal list-inside">
+				<li>
+					Go to the{" "}
+					<a
+						href="https://console.cloud.google.com/projectcreate"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="underline underline-offset-4 hover:text-foreground"
+					>
+						Google Cloud Console
+					</a>{" "}
+					and create a project (free)
+				</li>
+				<li>
+					Enable the{" "}
+					<a
+						href="https://console.cloud.google.com/apis/library/drive.googleapis.com"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="underline underline-offset-4 hover:text-foreground"
+					>
+						Google Drive API
+					</a>
+				</li>
+				<li>
+					Go to{" "}
+					<a
+						href="https://console.cloud.google.com/iam-admin/serviceaccounts"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="underline underline-offset-4 hover:text-foreground"
+					>
+						Service Accounts
+					</a>{" "}
+					and create one
+				</li>
+				<li>Create a key (JSON type) and download it</li>
+				<li>
+					In Google Drive, share a folder with the service account email
+					(it looks like{" "}
+					<code className="text-xs bg-muted px-1 py-0.5 rounded">
+						name@project.iam.gserviceaccount.com
+					</code>
+					)
+				</li>
+				<li>Paste the JSON key below and enter the folder ID from the URL</li>
+			</ol>
+		</details>
+		<HandleGoogleDriveDestinations />
+	</div>
+);
+
 export const ShowGoogleDriveDestinations = () => {
 	const { data, isLoading, refetch } = api.destination.all.useQuery();
+	const { data: rcloneCheck, isLoading: isCheckingRclone } =
+		api.destination.checkRcloneInstalled.useQuery();
 	const { mutateAsync, isLoading: isRemoving } =
 		api.destination.remove.useMutation();
 
 	const googleDriveDestinations = data?.filter(
 		(d) => d.destinationType === "google-drive",
 	);
+
+	const loading = isLoading || isCheckingRclone;
 
 	return (
 		<div className="w-full">
@@ -36,22 +152,17 @@ export const ShowGoogleDriveDestinations = () => {
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-2 py-8 border-t">
-						{isLoading ? (
+						{loading ? (
 							<div className="flex flex-row gap-2 items-center justify-center text-sm text-muted-foreground min-h-[25vh]">
 								<span>Loading...</span>
 								<Loader2 className="animate-spin size-4" />
 							</div>
+						) : !rcloneCheck?.installed ? (
+							<RcloneNotInstalled />
 						) : (
 							<>
 								{!googleDriveDestinations?.length ? (
-									<div className="flex flex-col items-center gap-3 min-h-[25vh] justify-center">
-										<FolderUp className="size-8 self-center text-muted-foreground" />
-										<span className="text-base text-muted-foreground text-center max-w-md">
-											Connect a Google Drive service account to use it as a
-											backup destination.
-										</span>
-										<HandleGoogleDriveDestinations />
-									</div>
+									<GoogleDriveSetupGuide />
 								) : (
 									<div className="flex flex-col gap-4 min-h-[25vh]">
 										<div className="flex flex-col gap-4 rounded-lg">
